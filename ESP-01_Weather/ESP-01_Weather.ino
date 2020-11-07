@@ -1,15 +1,13 @@
 #include <Adafruit_BME280.h>
-#include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
-#include <Adafruit_Sensor.h>
-#include <ArduinoJson.h>
-#include <ESP8266WebServer.h>
 #include <ESP8266WiFi.h>
 #include <ESP8266WiFiMulti.h>
-#include <ESP8266mDNS.h>
 #include <InfluxDbClient.h>
 #include <InfluxDbCloud.h>
 #include <Wire.h>
+
+//#include <Adafruit_Sensor.h> // Included by Adafruit_BME280.h
+//#include <Adafruit_GFX.h> // Included by Adafruit_SSD1306.h
 
 #define SDA 0
 #define SCL 2
@@ -23,29 +21,19 @@
 
 #define DISPLAY_ADDR 0x3C
 
-#define WIFI_SSID "wifi-name"
-#define WIFI_PASSWORD "secret"
+#define WIFI_SSID "wifi name"
+#define WIFI_PASSWORD "wifi password!"
 
-#define SERVER_IP "192.168.0.140"
-#define SERVER_PORT 3000
+#define TZ_INFO "CET-1CEST,M3.5.0,M10.5.0/3"  // Berlin
 
-#define INFLUXDB_HOST "https://iot.tiago.cloud:8086"
-#define INFLUXDB_PORT 8086
-#define INFLUXDB_DATABASE "house"
-#define INFLUXDB_USER "wemos"
-#define INFLUXDB_PASSWORD "Urban-Aloha-Exhale-Irregular-Shallot-Unrushed-Finally"
+#define INFLUXDB_URL "http://10.6.0.1:8086"
+#define INFLUXDB_TOKEN "your token"
+#define INFLUXDB_ORG "your org"
+#define INFLUXDB_BUCKET "bucket"
+
 #define MEASUREMENT "weather"
 
-#define TZ_INFO "CET-1CEST,M3.5.0,M10.5.0/3"
-
-// Certificate of Certificate Authority of InfluxData Cloud 2 servers
-const char certificate[] PROGMEM =  R"EOF( 
------BEGIN CERTIFICATE-----
-
------END CERTIFICATE-----
-)EOF";
-
-InfluxDBClient client;
+InfluxDBClient client(INFLUXDB_URL, INFLUXDB_ORG, INFLUXDB_BUCKET, INFLUXDB_TOKEN);
 
 unsigned long int delayTime = 1000;
 
@@ -58,9 +46,6 @@ unsigned long currentTime;
 const char *ssid = WIFI_SSID;
 const char *password = WIFI_PASSWORD;
 
-const char *host = SERVER_IP;
-const uint16_t port = SERVER_PORT;
-
 ESP8266WiFiMulti WiFiMulti;
 
 IPAddress ip;
@@ -69,13 +54,14 @@ String strData = String();
 String errMsg = String();
 bool err = false;
 
-void initInfluxDB(){
-  client.setConnectionParamsV1(
-                               INFLUXDB_HOST,
-                               INFLUXDB_DATABASE,
-                               INFLUXDB_USER,
-                               INFLUXDB_PASSWORD, certificate);
-}
+// Static IP configuration so we can set a differetn
+// gateway that will relay the traffic to my VPN as well
+// as allow access to the internet for syncing the time
+IPAddress local_IP(192, 168, 0, 15);
+IPAddress gateway(192, 168, 0, 42);
+IPAddress subnet(255, 255, 255, 0);
+IPAddress primaryDNS(8, 8, 8, 8); // optional
+IPAddress secondaryDNS(8, 8, 4, 4); // optional
 
 void initWifi() {
   Serial.println("\n\n-- Initialising WiFi --");
@@ -98,8 +84,16 @@ void initWifi() {
 
   Serial.println("");
   Serial.println("WiFi connected");
-  Serial.println("IP address: ");
+  Serial.println("DHCP IP address: ");
   Serial.println(ip);
+
+  // Configures static IP address
+  if (!WiFi.config(local_IP, gateway, subnet, primaryDNS, secondaryDNS)) {
+    Serial.println("Failed to configure static IP address");
+  }
+  Serial.println("Static IP address: ");
+  Serial.println(WiFi.localIP());
+  ip = WiFi.localIP();
 }
  
 void prepareData() {
@@ -160,14 +154,15 @@ void initBME(){
     }
   }
 
-  sensor.setSampling(Adafruit_BME280::MODE_NORMAL,
-                     Adafruit_BME280::SAMPLING_X16, // temperature
-                     Adafruit_BME280::SAMPLING_X16, // pressure
-                     Adafruit_BME280::SAMPLING_X16, // humidity
-                     Adafruit_BME280::FILTER_X16,
-                     Adafruit_BME280::STANDBY_MS_1000);
+  // Weather monitoring mode:
+  // https://github.com/adafruit/Adafruit_BME280_Library/blob/587329ab357dda8802e43faf48eb5ff3322af16b/examples/advancedsettings/advancedsettings.ino#L55-L68
+  sensor.setSampling(Adafruit_BME280::MODE_FORCED,
+                     Adafruit_BME280::SAMPLING_X1, // temperature
+                     Adafruit_BME280::SAMPLING_X1, // pressure
+                     Adafruit_BME280::SAMPLING_X1, // humidity
+                     Adafruit_BME280::FILTER_OFF);
 
-  delayTime = 1000;
+  delayTime = 60000;
 
   Serial.println(("-- BME280 initialised --"));
 }
@@ -200,31 +195,6 @@ void initDisplay(){
   delay(1000);
 }
 
-void writeJSON(WiFiClient out){
-  const int capacity = JSON_OBJECT_SIZE(5);
-  StaticJsonDocument<capacity> doc;
-
-  doc["altitude"] = altitude;
-  doc["humidity"] = humidity;
-  doc["location"]= "livingroom";
-  doc["pressure"] = pressure;
-  doc["temperature"] = temperature;
-
-  serializeJson(doc, out);
-}
-
-void writeToServer(){
-  WiFiClient client;
-
-  if (!client.connect(host, port)) {
-    Serial.println("connection failed");
-    return;
-  }
-
-  writeJSON(client);
-  client.stop();
-}
-
 Point p(MEASUREMENT);
 
 void setup() {
@@ -240,10 +210,8 @@ void setup() {
 
   timeSync(TZ_INFO, "pool.ntp.org", "time.nis.gov");
 
-  initInfluxDB();
-
   p.addTag("device", "WeMos");
-  p.addTag("location", "livingroom");
+  p.addTag("location", "hallway");
 }
 
 void loop() {
@@ -252,7 +220,6 @@ void loop() {
 
   writeSerial();
   writeDisplay();
-  /* writeToServer(); */
 
   p.clearFields();
   p.addField("altitude", altitude);
@@ -262,6 +229,12 @@ void loop() {
 
   Serial.println(p.toLineProtocol());
 
+  sendDataToInfluxDB();
+
+  delay(delayTime);
+}
+
+void sendDataToInfluxDB(){
   if ((WiFi.RSSI() == 0) && (WiFiMulti.run() != WL_CONNECTED)){
     Serial.print(F("Wifi connection lost, waiting 5s"));
     for (int i=0; i < 20; i++) {
@@ -281,6 +254,4 @@ void loop() {
     Serial.print(F("time sending data: "));
     Serial.println(millis() - before, DEC);
   }
-
-  delay(delayTime);
 }
