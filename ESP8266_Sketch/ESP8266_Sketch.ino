@@ -21,15 +21,15 @@
 
 #define DISPLAY_ADDR 0x3C
 
-#define WIFI_SSID "wifi name"
-#define WIFI_PASSWORD "wifi password!"
+#define WIFI_SSID "WiFi Name"
+#define WIFI_PASSWORD "WiFi Secure Password"
 
 #define TZ_INFO "CET-1CEST,M3.5.0,M10.5.0/3"  // Berlin
 
-#define INFLUXDB_URL "http://10.6.0.1:8086"
-#define INFLUXDB_TOKEN "your token"
-#define INFLUXDB_ORG "your org"
-#define INFLUXDB_BUCKET "bucket"
+#define INFLUXDB_URL "http://10.0.0.42:8086"
+#define INFLUXDB_TOKEN "InfluxDB 2.0 Token"
+#define INFLUXDB_ORG "Org"
+#define INFLUXDB_BUCKET "Bucket"
 
 #define MEASUREMENT "weather"
 
@@ -60,8 +60,8 @@ bool err = false;
 IPAddress local_IP(192, 168, 0, 15);
 IPAddress gateway(192, 168, 0, 42);
 IPAddress subnet(255, 255, 255, 0);
-IPAddress primaryDNS(8, 8, 8, 8); // optional
-IPAddress secondaryDNS(8, 8, 4, 4); // optional
+IPAddress primaryDNS(1, 1, 1, 1); // optional
+IPAddress secondaryDNS(1, 0, 0, 1); // optional
 
 void initWifi() {
   Serial.println("\n\n-- Initialising WiFi --");

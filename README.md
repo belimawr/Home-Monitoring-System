@@ -1,4 +1,4 @@
-# House Monitoring
+# Home Monitoring System
 
 ## Disclaimer
 This is a work in progress, anything can change at any point in time.
