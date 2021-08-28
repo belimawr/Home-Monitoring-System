@@ -45,3 +45,52 @@ SSD1306 - 128x64 OLED display (only in all units)
 * ESP8266 do not need to handle encryption (SSL, HTTPS, etc).
 * The Raspberry Pi does daily backups of the data from InfluxDB.
 
+### Raspberry Pi as gateway
+Install Tailscale, configure it, make sure it's working
+
+```sh
+## Enable IP forwarding
+sudo /bin/su -c "echo -e '\n#Enable IP Routing\nnet.ipv4.ip_forward = 1' > /etc/sysctl.conf"
+## Optionally edit the file /etc/sysctl.conf and enalbe 'ip_forward' for IPv4 and IPv6
+
+# Test IP forwarding
+sudo sysctl -p
+
+
+# IPTABLES configuration
+## Enable NAT
+sudo iptables -t nat -A POSTROUTING -o tailscale0 -j MASQUERADE
+
+## Allow traffic from wlan0 (internal) to tailscale0 (VPN)
+sudo iptables -A FORWARD -i wlan0 -o tailscale0 -j ACCEPT
+
+## Allow traffic from tailscale0 to go back over wlan0
+sudo iptables -A FORWARD -i tailscale0 -o wlan0 -m state --state RELATED,ESTABLISHED -j ACCEPT
+
+## Allow Raspiberry Pi's own loopback traffic
+sudo iptables -A INPUT -i lo -j ACCEPT
+
+## Allow computers on the local network (wlan0) and VPN (tailscale0) to ping the Raspberry Pi
+sudo iptables -A INPUT -i wlan0 -p icmp -j ACCEPT
+sudo iptables -A INPUT -i tailscale0 -p icmp -j ACCEPT
+
+## Allow SSH
+sudo iptables -A INPUT -p tcp --dport 22 -j ACCEPT
+
+## Allow traffic initiated by the Raspberry Pi to return
+sudo iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+
+## If traffic does not match the rules it will be dropped
+sudo iptables -P FORWARD DROP
+sudo iptables -P INPUT DROP
+
+## List the rules
+sudo iptables -L
+
+## Install a package to make the iptables rules presistent
+sudo apt-get install iptables-persistent
+
+## Save the new rules (if changed)
+sudo systemctl enable netfilter-persistent
+```
+
