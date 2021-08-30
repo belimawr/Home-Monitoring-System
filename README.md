@@ -81,7 +81,7 @@ sudo iptables -A INPUT -p tcp --dport 22 -j ACCEPT
 sudo iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
 
 ## If traffic does not match the rules it will be dropped
-sudo iptables -P FORWARD DROP
+sudo iptables -P FORWARD ACCEPT
 sudo iptables -P INPUT DROP
 
 ## List the rules

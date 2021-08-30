@@ -154,15 +154,13 @@ void initBME(){
     }
   }
 
-  // Weather monitoring mode:
-  // https://github.com/adafruit/Adafruit_BME280_Library/blob/587329ab357dda8802e43faf48eb5ff3322af16b/examples/advancedsettings/advancedsettings.ino#L55-L68
-  sensor.setSampling(Adafruit_BME280::MODE_FORCED,
-                     Adafruit_BME280::SAMPLING_X1, // temperature
-                     Adafruit_BME280::SAMPLING_X1, // pressure
-                     Adafruit_BME280::SAMPLING_X1, // humidity
-                     Adafruit_BME280::FILTER_OFF);
-
-  delayTime = 60000;
+  sensor.setSampling(Adafruit_BME280::MODE_NORMAL,
+                     Adafruit_BME280::SAMPLING_X16, // temperature
+                     Adafruit_BME280::SAMPLING_X16, // pressure
+                     Adafruit_BME280::SAMPLING_X16, // humidity
+                     Adafruit_BME280::FILTER_X16,
+                     Adafruit_BME280::STANDBY_MS_1000);
+  delayTime = 1000;
 
   Serial.println(("-- BME280 initialised --"));
 }
@@ -208,10 +206,10 @@ void setup() {
   initBME();
   initWifi();
 
-  timeSync(TZ_INFO, "pool.ntp.org", "time.nis.gov");
+  myTimeSync(TZ_INFO, "pool.ntp.org", "0.de.pool.ntp.org", "1.de.pool.ntp.org");
 
   p.addTag("device", "WeMos");
-  p.addTag("location", "hallway");
+  p.addTag("location", "livingroom");
 }
 
 void loop() {
